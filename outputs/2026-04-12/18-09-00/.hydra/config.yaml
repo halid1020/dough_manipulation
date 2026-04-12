@@ -1,0 +1,10 @@
+agent:
+  name: random
+arena:
+  name: DiffSkill
+  task: LiftSpread-v
+task:
+  name: dummy
+project_name: dough_manipulation
+save_root: /media/hcv530/T7/garment_folding_data
+train_and_eval: train_and_evaluate_single

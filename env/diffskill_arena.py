@@ -1,0 +1,91 @@
+import numpy as np
+import cv2
+from plb.envs import make
+from actoris_harena.arena.arena import Arena
+
+class DiffSkillArena(Arena):
+    def __init__(self, config):
+        super().__init__(config)
+        self.task_name = config.get('task', 'LiftSpread-v1')
+        self._env = make(self.task_name)
+        self.action_space = self._env.action_space
+        self._action_repeat = config.get('action_repeat', 1)
+        self.action_horizon = getattr(self._env, '_max_episode_steps', 50)
+        self.set_disp(bool(config.get('disp', False)))
+        
+        self.eval_params = [{'eid': i, 'save_video': i < 10} for i in range(30)]
+        self.val_params = [{'eid': i, 'save_video': True} for i in range(3)]
+
+    def reset(self, episode_config=None):
+        self._sim_step, self._total_reward, self._frames = 0, 0, []
+        conf = episode_config or {}
+        self._save_frame = conf.get('save_video', False)
+        
+        # Route seeds compactly using a dictionary offset
+        offsets = {'val': 30, 'eval': 0, 'train': 100}
+        seed = offsets.get(self.mode, 100) + conf.get('eid', np.random.randint(0, 10))
+        
+        self._env.seed(int(seed))
+        self._last_obs, self._last_info = self._env.reset(), {}
+        if self.disp: self._display()
+        return self._format_info(done=False, term=False)
+
+    def step(self, action):
+        action = action['default'] if isinstance(action, dict) else action
+        r_sum = 0
+        
+        for _ in range(self._action_repeat):
+            self._last_obs, r, done, self._last_info = self._env.step(action)
+            r_sum += r; self._sim_step += 1
+            if self.disp: self._display()
+            if self._save_frame: self._frames.append(self._get_rgb())
+            if done or self._sim_step >= self.action_horizon:
+                done = True; break
+                
+        self._total_reward += r_sum
+        return self._format_info(done=done, term=done, reward=r_sum)
+
+    def _format_info(self, done, term, reward=0):
+        """Helper to DRY up the return dictionaries for reset and step."""
+        obs = dict(self._last_obs) if isinstance(self._last_obs, dict) else {'state': self._last_obs}
+        if 'desired_goal' in obs:
+            obs['state'] = np.concatenate([obs.get('observation', []), obs.get('achieved_goal', []), obs.get('desired_goal', [])])
+        obs['rgb'] = self._get_rgb()
+        
+        suc = bool(self._last_info.get('is_success', self._last_info.get('success', False)))
+        if not suc and 'achieved_goal' in obs:
+            suc = np.linalg.norm(obs['achieved_goal'] - obs['desired_goal']) < 0.05
+
+        return {'done': done, 'terminated': term, 'reward': reward, 'evaluation': {'total_reward': self._total_reward},
+                'action_space': self._env.action_space, 'observation': obs, 'arena_id': self.aid, 
+                'sim_steps': self._action_repeat if reward else 0, 'success': suc}
+
+    def _get_rgb(self):
+        try: return self._env.render(mode='rgb_array')
+        except: return self._env.render()
+
+    def _display(self):
+        px = self._get_rgb()
+        if px is not None:
+            cv2.imshow('simulation', px[:, :, ::-1]) # Slicing [::-1] instantly converts RGB to BGR
+            cv2.waitKey(1)
+
+    def evaluate(self):
+        return {'total_reward': self._total_reward}
+
+    def compare(self, r1, r2):
+        """Ultra-compact comparison using list comprehensions and tuple looping."""
+        def stats(res):
+            g = lambda r, k: r.get(k, [0])[-1] if isinstance(r.get(k), list) else r.get(k, 0)
+            suc = [g(r, 'success') for r in res]
+            rwd = [g(r, 'total_reward') for r in res]
+            stp = [r.get('length', r.get('steps', len(r.get('success', [])) if type(r.get('success'))==list else 0)) for r, s in zip(res, suc) if s > 0.5]
+            return np.mean(suc or [0]), np.std(rwd or [0]), np.mean(stp or [float('inf')])
+        
+        (s1, r1, st1), (s2, r2, st2) = stats(r1), stats(r2)
+        
+        # Loop over criteria in priority order: (+ means higher is better, - means lower is better)
+        for diff, eps in [(s1 - s2, 1e-4), (r2 - r1, 1e-4), (st2 - st1, 0.5)]:
+            if diff > eps: return 1
+            if diff < -eps: return -1
+        return 0

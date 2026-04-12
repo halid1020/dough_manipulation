@@ -100,6 +100,9 @@ Run the random policy script to verify the physics engine works.
 > **Compilation Pause:** The very first time you run this, the script will pause on a `[pyKeOps] Compiling...` step for 30–60 seconds while it builds the custom C++ kernels for your GPU. Subsequent runs will execute instantly.
 
 ```bash
+cd ../dough_manipulatoin
+source ./setup.sh
+cd ../DiffSkill
 python scripts/random_env.py --env_name LiftSpread-v1
 ```
 
