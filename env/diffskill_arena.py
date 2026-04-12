@@ -16,6 +16,7 @@ class DiffSkillArena(Arena):
         self.eval_params = [{'eid': i, 'save_video': i < 10} for i in range(30)]
         self.val_params = [{'eid': i, 'save_video': True} for i in range(3)]
 
+
     def reset(self, episode_config=None):
         self._sim_step, self._total_reward, self._frames = 0, 0, []
         conf = episode_config or {}
@@ -38,7 +39,9 @@ class DiffSkillArena(Arena):
             self._last_obs, r, done, self._last_info = self._env.step(action)
             r_sum += r; self._sim_step += 1
             if self.disp: self._display()
-            if self._save_frame: self._frames.append(self._get_rgb())
+            if self._save_frame: 
+                print('saveing frames')
+                self._frames.append(self._get_rgb())
             if done or self._sim_step >= self.action_horizon:
                 done = True; break
                 
@@ -89,3 +92,14 @@ class DiffSkillArena(Arena):
             if diff > eps: return 1
             if diff < -eps: return -1
         return 0
+    
+    def success(self):
+        """Returns a boolean indicating if the current state is a success."""
+        # 1. Try to get the success flag directly from the Gym env's info dict
+        suc = bool(self._last_info.get('is_success', self._last_info.get('success', False)))
+        
+        # 2. Fallback: Check if we reached the goal based on the observation dict
+        if not suc and isinstance(self._last_obs, dict) and 'achieved_goal' in self._last_obs:
+            suc = np.linalg.norm(self._last_obs['achieved_goal'] - self._last_obs['desired_goal']) < 0.05
+            
+        return suc
