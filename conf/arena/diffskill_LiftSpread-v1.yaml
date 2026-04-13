@@ -1,2 +1,3 @@
 name: diffskill
 task: 'LiftSpread-v1'
+display: True

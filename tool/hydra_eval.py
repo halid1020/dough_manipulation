@@ -38,7 +38,6 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg, resolve=True))
     print("[tool.hydra_eval] ---------------------")
 
-    # Fixed pathing: save_root/project_name/exp_name
     save_dir = os.path.join(cfg.save_root, project_name, exp_name)
     
     agent_name = cfg.agent.get('name', exp_name) 

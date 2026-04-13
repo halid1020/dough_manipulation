@@ -1,0 +1,9 @@
+# @package _global_
+defaults:
+  - /agent@agent: vanilla_image_sac
+  - /arena@arena: diffskill_LiftSpread-v1
+  - /task@task: dummy #because it is included already in the environment.
+
+project_name: dough_manipulation
+save_root: /media/hcv530/T7/
+train_and_eval: train_and_evaluate_single

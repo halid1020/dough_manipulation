@@ -1,31 +1,33 @@
 import numpy as np
 import cv2
 from plb.envs import make
-from actoris_harena.arena.arena import Arena
+from core.diffskill.env_spec import set_render_mode
+from actoris_harena import Arena, StandardLogger
 
 class DiffSkillArena(Arena):
     def __init__(self, config):
         super().__init__(config)
         self.task_name = config.get('task', 'LiftSpread-v1')
         self._env = make(self.task_name)
+        set_render_mode(self._env, self.task_name, 'mesh')
         self.action_space = self._env.action_space
+        print('action space', self.action_space)
         self._action_repeat = config.get('action_repeat', 1)
         self.action_horizon = getattr(self._env, '_max_episode_steps', 50)
-        self.set_disp(bool(config.get('disp', False)))
-        
-        self.eval_params = [{'eid': i, 'save_video': i < 10} for i in range(30)]
-        self.val_params = [{'eid': i, 'save_video': True} for i in range(3)]
-
-
+        self.set_disp(bool(config.get('display', False)))
+        self.logger = StandardLogger()
+     
     def reset(self, episode_config=None):
-        self._sim_step, self._total_reward, self._frames = 0, 0, []
+        self._sim_step, self._total_reward, self.video_frames = 0, 0, []
         conf = episode_config or {}
         self._save_frame = conf.get('save_video', False)
-        
-        # Route seeds compactly using a dictionary offset
-        offsets = {'val': 30, 'eval': 0, 'train': 100}
-        seed = offsets.get(self.mode, 100) + conf.get('eid', np.random.randint(0, 10))
-        
+
+        offsets = {'eval': 0, 'val': self.num_eval_trials,
+                   'train': self.num_eval_trials + self.num_val_trials}
+
+        self.eid = conf.get('eid', np.random.randint(0, self.get_num_episodes()))
+        seed = offsets[self.mode] + self.eid
+       
         self._env.seed(int(seed))
         self._last_obs, self._last_info = self._env.reset(), {}
         if self.disp: self._display()
@@ -39,9 +41,7 @@ class DiffSkillArena(Arena):
             self._last_obs, r, done, self._last_info = self._env.step(action)
             r_sum += r; self._sim_step += 1
             if self.disp: self._display()
-            if self._save_frame: 
-                print('saveing frames')
-                self._frames.append(self._get_rgb())
+            if self._save_frame: self.video_frames.append(self._get_rgb())
             if done or self._sim_step >= self.action_horizon:
                 done = True; break
                 
@@ -63,18 +63,18 @@ class DiffSkillArena(Arena):
                 'action_space': self._env.action_space, 'observation': obs, 'arena_id': self.aid, 
                 'sim_steps': self._action_repeat if reward else 0, 'success': suc}
 
-    def _get_rgb(self):
-        try: return self._env.render(mode='rgb_array')
-        except: return self._env.render()
+    def _get_rgb(self): # RGB from the envirnment must be between 0 and 255.
+        return np.clip(self._env.render(mode='rgb') * 255.0, 0, 255).astype(np.uint8)
 
+    
     def _display(self):
         px = self._get_rgb()
         if px is not None:
             cv2.imshow('simulation', px[:, :, ::-1]) # Slicing [::-1] instantly converts RGB to BGR
             cv2.waitKey(1)
+        else: print('[DiffSkillArena] px is None')
 
-    def evaluate(self):
-        return {'total_reward': self._total_reward}
+    def evaluate(self): return {'total_reward': self._total_reward}
 
     def compare(self, r1, r2):
         """Ultra-compact comparison using list comprehensions and tuple looping."""
@@ -94,12 +94,4 @@ class DiffSkillArena(Arena):
         return 0
     
     def success(self):
-        """Returns a boolean indicating if the current state is a success."""
-        # 1. Try to get the success flag directly from the Gym env's info dict
-        suc = bool(self._last_info.get('is_success', self._last_info.get('success', False)))
-        
-        # 2. Fallback: Check if we reached the goal based on the observation dict
-        if not suc and isinstance(self._last_obs, dict) and 'achieved_goal' in self._last_obs:
-            suc = np.linalg.norm(self._last_obs['achieved_goal'] - self._last_obs['desired_goal']) < 0.05
-            
-        return suc
+        return bool(self._last_info.get('is_success', self._last_info.get('success', False)))
