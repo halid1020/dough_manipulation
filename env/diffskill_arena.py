@@ -10,6 +10,7 @@ class DiffSkillArena(Arena):
         self.task_name = config.get('task', 'LiftSpread-v1')
         self._env = make(self.task_name)
         set_render_mode(self._env, self.task_name, 'mesh')
+        self.resolution = config.get('resolution', [256, 256])
         self.action_space = self._env.action_space
         print('action space', self.action_space)
         self._action_repeat = config.get('action_repeat', 1)
@@ -63,9 +64,10 @@ class DiffSkillArena(Arena):
                 'action_space': self._env.action_space, 'observation': obs, 'arena_id': self.aid, 
                 'sim_steps': self._action_repeat if reward else 0, 'success': suc}
 
-    def _get_rgb(self): # RGB from the envirnment must be between 0 and 255.
-        return np.clip(self._env.render(mode='rgb') * 255.0, 0, 255).astype(np.uint8)
-
+    def _get_rgb(self): 
+        """Get RGB frame, scale to 0-255 uint8 format, and optionally resize."""
+        img = np.clip(self._env.render(mode='rgb') * 255.0, 0, 255).astype(np.uint8)
+        return cv2.resize(img, self.resolution, interpolation=cv2.INTER_AREA)[:, :, :3]
     
     def _display(self):
         px = self._get_rgb()

@@ -203,4 +203,4 @@ source ./setup.sh
 python tool/hydra_eval.py --config-name sim_exp/random_policy_on_diffskill_LiftSpread-v1
 ```
 
-# TO BE CONTINUE ...
+# TO Write the SAC part

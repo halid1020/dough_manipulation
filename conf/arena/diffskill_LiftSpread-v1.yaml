@@ -1,3 +1,4 @@
 name: diffskill
 task: 'LiftSpread-v1'
-display: True
+display: False
+resolution: [84, 84]
