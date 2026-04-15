@@ -17,7 +17,7 @@ def main(cfg: DictConfig):
     # register_agents()
     register_arenas()
 
-    new_save_root = resolve_save_root(cfg.save_root)
+    new_save_root = cfg.save_root #resolve_save_root(cfg.save_root)
     print(f"[tool.hydra_eval] Using Save Root: {new_save_root}")
 
     # 2. Get the name of the yaml config file (without the .yaml extension)
