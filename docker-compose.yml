@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  dough_env:
+    build: .
+    container_name: dough_manip_container
+    volumes:
+      # This binds your local directory to the container. 
+      # Any edits you make in VSCode instantly reflect inside the container!
+      - .:/workspace/dough_manipulation
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
